@@ -27,6 +27,13 @@ REPO = Path(__file__).resolve().parent
 SAMPLE = REPO / "examples" / "sample_transcript.txt"
 DEFAULT_ROOT = Path.home() / ".video-distill-expert"
 
+# The distilled claims are quoted Chinese transcript text; printing them to an
+# en-US Windows console (cp1252) raises UnicodeEncodeError and fails the check
+# for display reasons, not pipeline reasons. Same guard as bootstrap.py.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 
 def ensure_engine(root: Path) -> None:
     """Re-exec under the deployment's interpreter if this one lacks v2n.
