@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -32,6 +33,13 @@ REPO = Path(__file__).resolve().parent.parent
 ENGINE = REPO / "engine"
 PACKAGE = ENGINE / "v2n"
 MANIFEST = ENGINE / "MANIFEST.json"
+
+# Prose that states the same two facts as the manifest. It is checked, not
+# trusted: AGENTS.md once kept saying "35 个文件 / 27acc29" through two syncs,
+# which in a repository whose selling point is manifest checks is the one place
+# that cannot be allowed to drift. Prose is restamped by `write` / `sync`.
+DOCS = [REPO / "AGENTS.md", REPO / "README.md", REPO / "skill" / "SKILL.md"]
+CLAIM = re.compile(r"(\d+) 个文件，来自上游 `([0-9a-f]{7,40})`")
 
 
 def sha256(path: Path) -> str:
@@ -74,12 +82,37 @@ def payload(source: Path | None) -> dict[str, object]:
     }
 
 
+def _claims() -> list[tuple[Path, int, str]]:
+    out: list[tuple[Path, int, str]] = []
+    for doc in DOCS:
+        if not doc.is_file():
+            continue
+        for match in CLAIM.finditer(doc.read_text(encoding="utf-8")):
+            out.append((doc, int(match.group(1)), match.group(2)))
+    return out
+
+
+def _restamp(data: dict[str, object]) -> None:
+    """Rewrite the prose claims to match a freshly written manifest."""
+    count, sha = len(data["files"]), str(data["commit"])[:7]
+    for doc in DOCS:
+        if not doc.is_file():
+            continue
+        text = doc.read_text(encoding="utf-8")
+        new, hits = CLAIM.subn(f"{count} 个文件，来自上游 `{sha}`", text)
+        if hits and new != text:
+            doc.write_text(new, encoding="utf-8")
+            print(f"restamped {doc.relative_to(REPO).as_posix()}: "
+                  f"{count} files from {sha}")
+
+
 def cmd_write(source: Path | None) -> int:
     data = payload(source)
     MANIFEST.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
                         encoding="utf-8")
     print(f"wrote {MANIFEST.relative_to(REPO)}: {len(data['files'])} files "
           f"from {str(data['commit'])[:8]}")
+    _restamp(data)
     return 0
 
 
@@ -87,7 +120,8 @@ def cmd_verify() -> int:
     if not MANIFEST.exists():
         print("FAIL engine/MANIFEST.json is missing; run: python scripts/manifest.py write")
         return 1
-    recorded = json.loads(MANIFEST.read_text(encoding="utf-8")).get("files") or {}
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    recorded = manifest.get("files") or {}
     actual = {str(p.relative_to(ENGINE)).replace("\\", "/"): sha256(p) for p in files()}
     problems: list[str] = []
     for name, info in recorded.items():
@@ -97,8 +131,15 @@ def cmd_verify() -> int:
             problems.append(f"modified  {name}")
     for name in sorted(set(actual) - set(recorded)):
         problems.append(f"untracked {name}")
+    count, sha = len(recorded), str(manifest.get("commit", ""))[:7]
+    for doc, claimed_count, claimed_sha in _claims():
+        if (claimed_count, claimed_sha) != (count, sha):
+            problems.append(
+                f"prose     {doc.relative_to(REPO).as_posix()} says "
+                f"{claimed_count} files from {claimed_sha}; manifest says "
+                f"{count} from {sha}")
     if problems:
-        print("FAIL the vendored engine drifted from MANIFEST.json:")
+        print("FAIL the vendored engine and MANIFEST.json disagree:")
         for line in problems:
             print("     " + line)
         print("     if the change is intended, re-run: python scripts/manifest.py write")
