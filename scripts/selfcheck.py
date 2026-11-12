@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -65,28 +66,34 @@ def check_idempotent(root: Path, config: Path, skill: Path) -> None:
 
 def check_merge() -> None:
     temp = Path(tempfile.mkdtemp(prefix="vde-merge-"))
-    config = temp / "mcp.json"
-    seed = {
-        "mcpServers": {"keep-me": {"command": "node", "args": ["x.js"]}},
-        "unrelated": {"nested": [1, 2], "flag": True},
-    }
-    config.write_text(json.dumps(seed, indent=2), encoding="utf-8")
-    run = bootstrap(["--root", str(temp / "root"), "--host", "workbuddy",
-                     "--config", str(config), "--skill-dir", str(temp / "skills")])
-    assert run.returncode == 0, run.stdout + run.stderr
-    data = json.loads(read(config))
-    assert data["mcpServers"]["keep-me"] == seed["mcpServers"]["keep-me"]
-    assert data["unrelated"] == seed["unrelated"]
-    assert SERVER_ID in data["mcpServers"]
-    backup = list(temp.glob("mcp.json.bak-*"))
-    assert len(backup) == 1, f"expected exactly one backup, got {backup}"
-    assert json.loads(read(backup[0])) == seed, "backup is not the original"
+    try:
+        config = temp / "mcp.json"
+        seed = {
+            "mcpServers": {"keep-me": {"command": "node", "args": ["x.js"]}},
+            "unrelated": {"nested": [1, 2], "flag": True},
+        }
+        config.write_text(json.dumps(seed, indent=2), encoding="utf-8")
+        run = bootstrap(["--root", str(temp / "root"), "--host", "workbuddy",
+                         "--config", str(config), "--skill-dir", str(temp / "skills")])
+        assert run.returncode == 0, run.stdout + run.stderr
+        data = json.loads(read(config))
+        assert data["mcpServers"]["keep-me"] == seed["mcpServers"]["keep-me"]
+        assert data["unrelated"] == seed["unrelated"]
+        assert SERVER_ID in data["mcpServers"]
+        backup = list(temp.glob("mcp.json.bak-*"))
+        assert len(backup) == 1, f"expected exactly one backup, got {backup}"
+        assert json.loads(read(backup[0])) == seed, "backup is not the original"
+    except BaseException:
+        # Keep the tree: a failure here is rare, and the config it failed on is
+        # the evidence. Printing the path beats leaving it to be guessed at.
+        print(f"FAIL merge scratch kept for inspection: {temp}")
+        raise
+    else:
+        shutil.rmtree(temp, ignore_errors=True)
     print("ok   foreign entries and unknown keys preserved")
 
 
 def check_uninstall(root: Path) -> None:
-    import shutil
-
     shutil.rmtree(root, ignore_errors=True)
     assert not root.exists(), root
     print("ok   root removed cleanly")
