@@ -6,11 +6,16 @@ needs credentials to a private repository. Copies rot. ``MANIFEST.json`` records
 the upstream commit and the hash of every file, which turns "it looks the same"
 into a check that either passes or fails.
 
+Hashes are computed over the bytes on disk, so they only mean something if the
+working tree matches what a clone produces. That is why ``.gitattributes`` pins
+``eol=lf``: without it a Windows checkout writes CRLF into a few files and every
+clone suddenly "drifts".
+
     python scripts/manifest.py write                    # regenerate after a sync
     python scripts/manifest.py verify                   # CI: exit 1 on drift
     python scripts/manifest.py sync --from ../video2notes
 
-``sync`` copies *only* ``v2n/**/*.py`` and removes files that no longer exist
+``sync`` copies everything under ``v2n/`` and removes files that no longer exist
 upstream, so a deleted module cannot linger here and keep being imported.
 """
 from __future__ import annotations
@@ -33,22 +38,29 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def upstream_commit(source: Path) -> str:
+def git(source: Path, *args: str) -> str:
+    """Best-effort git query; an empty string means "not a checkout"."""
     try:
-        out = subprocess.run(["git", "-C", str(source), "rev-parse", "HEAD"],
-                             check=False, capture_output=True, text=True, timeout=30)
+        out = subprocess.run(["git", "-C", str(source), *args], check=False,
+                             capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired):
-        return "unknown"
-    return out.stdout.strip() if out.returncode == 0 else "unknown"
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
 
 
 def files() -> list[Path]:
-    return sorted(p for p in PACKAGE.rglob("*.py") if "__pycache__" not in p.parts)
+    return sorted(p for p in PACKAGE.rglob("*")
+                  if p.is_file() and "__pycache__" not in p.parts)
 
 
 def payload(source: Path | None) -> dict[str, object]:
     if source is not None:
-        commit, origin = upstream_commit(source), str(source)
+        # Record the URL, not the path it happened to be checked out at: a
+        # manifest is read by strangers, and a local path tells them nothing.
+        commit = git(source, "rev-parse", "HEAD") or "unknown"
+        origin = git(source, "remote", "get-url", "origin") or str(source)
+        if origin.startswith("git@"):
+            origin = "https://" + origin[4:].replace(":", "/", 1)
     else:
         previous = json.loads(MANIFEST.read_text(encoding="utf-8")) if MANIFEST.exists() else {}
         commit, origin = previous.get("commit", "unknown"), previous.get("from", "unknown")
@@ -67,7 +79,7 @@ def cmd_write(source: Path | None) -> int:
     MANIFEST.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
                         encoding="utf-8")
     print(f"wrote {MANIFEST.relative_to(REPO)}: {len(data['files'])} files "
-          f"from {data['commit'][:8]}")
+          f"from {str(data['commit'])[:8]}")
     return 0
 
 
@@ -105,19 +117,22 @@ def cmd_sync(source: Path) -> int:
     for stale in PACKAGE.rglob("__pycache__"):
         shutil.rmtree(stale, ignore_errors=True)
     copied = 0
-    for path in sorted(src.rglob("*.py")):
-        if "__pycache__" in path.parts:
+    for path in sorted(src.rglob("*")):
+        if not path.is_file() or "__pycache__" in path.parts:
             continue
         dest = PACKAGE / path.relative_to(src)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, dest)
+        # write_bytes, not copy2 + text mode: the manifest hashes these exact
+        # bytes, and a newline translation here would make it self-invalidating.
+        dest.write_bytes(path.read_bytes())
         copied += 1
     print(f"copied {copied} files from {src}")
     return cmd_write(source.resolve())
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="manifest.py", description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(prog="manifest.py",
+                                 description="Verify or refresh the vendored engine.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     w = sub.add_parser("write", help="regenerate MANIFEST.json from the current tree")
     w.add_argument("--from", dest="source", default=None, help="upstream checkout")
