@@ -7,6 +7,7 @@ from ...asr import fmt_ts
 from ...atomic import atomic_write_text
 from ...config import Config
 from ..model import KIND_LABELS, DistillIR
+from ..readability import punctuate
 
 FILENAME = "timeline.md"
 
@@ -22,7 +23,7 @@ def render(ir: DistillIR, out_dir: Path, _cfg: Config) -> Path:
     ]
     for claim in ir.claims:
         label = KIND_LABELS.get(claim.kind, claim.kind)
-        text = claim.text.replace("|", "\\|")
+        text = punctuate(claim.text).replace("|", "\\|")
         lines.append(f"| {fmt_ts(claim.start)} | {label} | {text} |")
     if not ir.claims:
         lines.append("| — | — | 无可提炼命题 |")

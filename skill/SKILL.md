@@ -45,7 +45,7 @@ v2n_prepare {lesson, chunk_size: 20}
 **转写里有明显听错的词时**（人名、术语、产品名的同音错字），先做一张术语表再切：
 
 ```
-v2n_prepare {lesson, terms: "D:/runs/terms.yaml"}
+v2n_prepare {lesson, terms: "terms.yaml 的路径"}
 ```
 
 表是 YAML，`[听错的, 正确的]` 一行一对。规则：**只写你在 `transcript.txt` 里真实看到的错字，不确定的保持原样**——猜出来的规则会悄悄改写正确的文本。表会在第一次使用时固化进 `<lesson>/_agent/terms.yaml`，后续 submit / finalize 自动复用，不需要每次重传（也不需要设 `V2N_TERMS_FILE`）。改了表想重新生效：重传 + `force: true` 重切。
@@ -76,6 +76,8 @@ v2n_finalize {lesson, outputs: "outline,timeline,cheatsheet"}
 ```
 
 返回 `gate` / `claims` / `coverage` / `untraceable` / `rendered` / `outputs`。`gate: FAIL` 时先看 `reasons`，不要直接重跑。
+
+产出的 `.md` 是渲染层：**无标点的中文连读命题会被自动恢复标点断句**（逗号与句号，不改任何字词）。你交的命题原文保存在 `distill.json` 里一字不动——所以**不要在提交时就自己加标点**，校验对的是原文子串，加了就拒。
 
 `gate: FAIL` 时**目录里不会有任何 `.md`**——闸门在渲染之前执行，这是刻意的，不是产物丢了。此时：
 

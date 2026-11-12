@@ -107,7 +107,7 @@ python demo.py --work /tmp/vde-demo
 
 | 项 | 路径 |
 |---|---|
-| 引擎源码 | `engine/v2n/`（37 个文件，来自上游 `c51bf26`） |
+| 引擎源码 | `engine/v2n/`（38 个文件，来自上游 `6da6f79`） |
 | 部署器 | `bootstrap.py`（仅标准库） |
 | 蒸馏规则 | `skill/SKILL.md` |
 | 自检演示 | `demo.py` |

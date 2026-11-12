@@ -10,6 +10,7 @@ from pathlib import Path
 from ...atomic import atomic_write_text
 from ...config import Config
 from ..model import KIND_LABELS, DistillIR
+from ..readability import punctuate
 from ..rules import HIGH_VALUE
 
 FILENAME = "cheatsheet.md"
@@ -23,7 +24,7 @@ def render(ir: DistillIR, out_dir: Path, _cfg: Config) -> Path:
     marked = [c for c in ir.claims if c.emphasis]
     if marked:
         lines += ["## 重点", ""]
-        lines += [f"- {c.text}" for c in marked]
+        lines += [f"- {punctuate(c.text)}" for c in marked]
         lines.append("")
         kept += len(marked)
     for kind in _ORDER:
@@ -33,7 +34,7 @@ def render(ir: DistillIR, out_dir: Path, _cfg: Config) -> Path:
             continue
         lines += [f"## {KIND_LABELS.get(kind, kind)}", ""]
         for claim in group:
-            lines.append(f"- {claim.text}")
+            lines.append(f"- {punctuate(claim.text)}")
         lines.append("")
         kept += len(group)
     if kept == 0:
