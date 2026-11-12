@@ -70,6 +70,9 @@ def _prepare(args: dict[str, Any]) -> dict[str, Any]:
     from .agent import load_segments, prepare
 
     lesson, cfg = _lesson_cfg(args)
+    raw_terms = str(args.get("terms") or "").strip()
+    if raw_terms:
+        cfg.terms_file = Path(raw_terms)
     segments = load_segments(lesson, cfg)
     info = prepare(lesson, segments,
                    chunk_size=int(args["chunk_size"]) if args.get("chunk_size") else None,
@@ -154,7 +157,11 @@ _TOOLS: list[dict[str, Any]] = [
                                          "description": "segments per work order (default 20)"},
                           "force": {"type": "boolean",
                                     "description": "rebuild even if work orders still match"},
-                          "key": {"type": "string", "description": "lesson key override"}}},
+                          "key": {"type": "string", "description": "lesson key override"},
+                          "terms": {"type": "string",
+                                    "description": "path to a YAML [wrong, right] "
+                                                   "term table; persisted into the "
+                                                   "lesson so submit/finalize reuse it"}}},
           _prepare),
     _tool("v2n_get_chunk",
           "Fetch one work order: its instruction plus the segments to answer. "

@@ -267,6 +267,8 @@ def cmd_agent_prepare(args: argparse.Namespace) -> int:
 
     lesson = Path(args.lesson).resolve()
     cfg = _cfg(args, work_dir=lesson)
+    if args.terms:
+        cfg.terms_file = Path(args.terms)
     segments = load_segments(lesson, cfg)
     info = prepare(lesson, segments, chunk_size=args.chunk_size,
                    force=args.force, lesson_key=args.key or "")
@@ -599,6 +601,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap_prep.add_argument("--chunk-size", type=int,
                          help="segments per work order (default 20)")
     ap_prep.add_argument("--key", help="lesson key (default: directory name)")
+    ap_prep.add_argument("--terms",
+                         help="YAML [wrong, right] term table for ASR correction; "
+                              "persisted into the lesson so submit/finalize reuse it")
     ap_prep.add_argument("--force", action="store_true",
                          help="rebuild work orders even if they still match")
     ap_prep.set_defaults(func=cmd_agent_prepare)

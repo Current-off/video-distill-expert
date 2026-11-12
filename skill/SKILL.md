@@ -42,6 +42,14 @@ v2n_prepare {lesson, chunk_size: 20}
 返回 `chunks` / `pending`。切块是确定的：同样的转写永远切成同样的块，重跑不会变。
 默认 20 段一块；遇到长课不要调大 —— 单批越大，模型越容易从「抽取」滑向「概括」。
 
+**转写里有明显听错的词时**（人名、术语、产品名的同音错字），先做一张术语表再切：
+
+```
+v2n_prepare {lesson, terms: "D:/runs/terms.yaml"}
+```
+
+表是 YAML，`[听错的, 正确的]` 一行一对。规则：**只写你在 `transcript.txt` 里真实看到的错字，不确定的保持原样**——猜出来的规则会悄悄改写正确的文本。表会在第一次使用时固化进 `<lesson>/_agent/terms.yaml`，后续 submit / finalize 自动复用，不需要每次重传（也不需要设 `V2N_TERMS_FILE`）。改了表想重新生效：重传 + `force: true` 重切。
+
 ### 3. 逐块作答
 
 对每个 `pending` 里的 id：
@@ -101,7 +109,7 @@ v2n_finalize {lesson, outputs: "outline,timeline,cheatsheet"}
 MCP 不可用时，这些命令做同样的事：
 
 ```
-v2n agent prepare  --lesson DIR [--chunk-size N] [--force]
+v2n agent prepare  --lesson DIR [--chunk-size N] [--terms TERMS.yaml] [--force]
 v2n agent submit   --lesson DIR --chunk chunk-001 --file answers.json   # '-' 读 stdin
 v2n agent finalize --lesson DIR [--outputs all]
 v2n agent status   --lesson DIR

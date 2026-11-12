@@ -53,6 +53,7 @@ from .transcript import TermTable, clean
 
 AGENT_DIR = "_agent"
 MANIFEST = "manifest.json"
+PERSISTED_TERMS = "terms.yaml"
 SCHEMA_VERSION = 1
 DEFAULT_CHUNK_SIZE = 20
 # Fabricated claims are quoted back to the caller so the host can see what it
@@ -114,9 +115,18 @@ def load_manifest(lesson_dir: Path | str) -> dict[str, Any]:
 def load_segments(lesson_dir: Path | str, cfg: Config) -> list[Segment]:
     """Cleaned segments of a lesson, replayed from ``transcript.txt``.
 
-    The term table is taken from an existing ``distill.json`` when the caller
-    did not pass one: replaying ``clean`` without it would resurrect the ASR
-    errors the first run had already corrected.
+    Term resolution: an explicit ``cfg.terms_file`` wins, then the copy
+    persisted at ``_agent/terms.yaml``, then the table an old ``distill.json``
+    was built with. The persisted copy exists because a lesson spans several
+    processes — prepare, one submit per chunk, finalize — and a term table set
+    through the environment reaches none of them by default. Without the copy,
+    an env var dropped between commands replayed the cleaning with a different
+    table: chunk fingerprints stopped matching, and ASR errors the first run
+    had corrected came back.
+
+    To re-apply a corrected table, pass it explicitly (``--terms``,
+    ``V2N_TERMS_FILE`` or a config file) and re-run ``prepare --force``; the
+    explicit table always overwrites the persisted copy.
     """
     lesson = Path(lesson_dir)
     path = lesson / "transcript.txt"
@@ -124,6 +134,9 @@ def load_segments(lesson_dir: Path | str, cfg: Config) -> list[Segment]:
         raise FileNotFoundError(
             f"{path} not found; run the lesson once so a transcript exists")
     terms = cfg.terms_file
+    persisted = work_dir(lesson) / PERSISTED_TERMS
+    if terms is None and persisted.exists():
+        terms = persisted
     if terms is None:
         ir_path = lesson / "distill.json"
         if ir_path.exists():
@@ -136,7 +149,39 @@ def load_segments(lesson_dir: Path | str, cfg: Config) -> list[Segment]:
                 stored = ""
             if stored:
                 terms = Path(stored)
-    return clean(load_transcript(path), TermTable.load(terms), cfg).segments
+    table = TermTable.load(terms)
+    if terms is not None:
+        _persist_terms(lesson, terms, table)
+    return clean(load_transcript(path), table, cfg).segments
+
+
+def _persist_terms(lesson: Path, source: Path, table: TermTable) -> None:
+    """Copy the active term table into ``_agent/terms.yaml``.
+
+    Idempotent: skips the write when the copy already holds the same text, so
+    every later command that resolves the same table writes nothing.
+    """
+    target = work_dir(lesson) / PERSISTED_TERMS
+    if table.source and Path(table.source).resolve() == target.resolve():
+        return
+    text = source.read_text(encoding="utf-8")
+    if target.exists() and target.read_text(encoding="utf-8") == text:
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(target, text)
+
+
+def _active_terms_path(lesson: Path, cfg: Config) -> str:
+    """Path of the term table the cleaning step actually used, or "".
+
+    Mirrors the resolution order of :func:`load_segments` so the IR's
+    ``stats.terms_file`` names a table that still exists on the next replay.
+    """
+    explicit = getattr(cfg, "terms_file", None)
+    if explicit:
+        return str(explicit)
+    persisted = work_dir(lesson) / PERSISTED_TERMS
+    return str(persisted.resolve()) if persisted.exists() else ""
 
 
 def _lesson_key(lesson: Path) -> str:
@@ -476,8 +521,10 @@ def finalize(lesson_dir: Path | str, cfg: Config, *, outputs: list[str] | None =
         if len(keys):
             ir = apply_hotkeys(ir, keys)
     # Same field the pipeline records, so a later partial re-distil replays the
-    # cleaning step with the term table this IR was built with.
-    ir.stats["terms_file"] = str(getattr(cfg, "terms_file", "") or "")
+    # cleaning step with the term table this IR was built with. The path
+    # resolves the same way load_segments does: an explicit table first, else
+    # the persisted copy, else nothing.
+    ir.stats["terms_file"] = _active_terms_path(lesson, cfg)
     write_ir(ir, lesson / "distill.json")
 
     # Imported here to keep this module importable before the pipeline exists.
