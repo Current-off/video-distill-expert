@@ -44,6 +44,16 @@ EXIT_ENV = 2
 EXIT_INSTALL = 3
 EXIT_PROBE = 4
 
+# The banner is Chinese, and a legacy Windows console code page is not: on an
+# en-US machine stdout is cp1252, which cannot encode 视, so the very first
+# print dies with UnicodeEncodeError before a single real step runs. Windows
+# runners are exactly such machines — which is how CI caught this and my
+# zh-CN laptop did not. `errors="replace"` keeps even a hostile encoding from
+# raising; the venv's children get the same guard via env vars in run().
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 # Host-specific locations. ``generic`` prints a snippet instead of writing,
 # because guessing a path for an unknown host is how configurations get corrupted.
 HOSTS = {
