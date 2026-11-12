@@ -414,10 +414,14 @@ def build_ir(lesson_dir: Path | str, segments: list[Segment], cfg: Config, *,
             covered.add(index)
 
     if not claims:
+        # Not a gate FAIL: there is no IR for the gate to judge. Say where the
+        # evidence is instead, because "no distill.json" on its own reads as a
+        # crash rather than as a verdict about the answers.
         raise RuntimeError(
             "no accepted claim yet; submit the remaining chunks first "
             f"({len(pending)} pending)" if pending else
-            "no accepted claim survived validation; check `v2n agent status`")
+            "no accepted claim survived validation; per-claim reasons are in "
+            f"{work_dir(lesson) / 'chunk-*.result.json'} and `v2n agent status`")
 
     topics = group_topics(claims, max_per_topic=cfg.distill_max_claims_per_topic,
                           lang=lang)

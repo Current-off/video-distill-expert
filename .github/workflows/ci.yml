@@ -23,6 +23,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python: ["3.10", "3.13"]
+        # 3.14 is what a machine bought today installs, and the isolated audit
+        # deployed on it while this matrix never did. One OS is enough: an
+        # interpreter break shows up before a platform one.
+        include:
+          - os: ubuntu-latest
+            python: "3.14"
     defaults:
       run:
         shell: bash

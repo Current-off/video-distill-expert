@@ -73,7 +73,7 @@ v2n_finalize {lesson, outputs: "outline,timeline,cheatsheet"}
 
 - 不要用 `v2n_render` 重渲染（会明确拒绝；只有 `force: true` 才写，等于你主动接受一份不合格提纲）
 - 不要因为目录空就重新提交整课——先读 `reasons`，只有相关的那几块有问题
-- `distill.json` 一定在，它是排查用的材料，不是交付物
+- `distill.json` 在，它是排查用的材料，不是交付物。唯一例外：提交上来的命题**全被**回链校验拒掉时，连 IR 都建不起来（工具报错、退出码 2、目录里没有 `distill.json`）——逐条拒绝理由在 `_agent/chunk-*.result.json` 的 `rejected` 里，看那里，不要反复重交同一份改写
 
 ## 质量红线
 
@@ -93,6 +93,7 @@ v2n_finalize {lesson, outputs: "outline,timeline,cheatsheet"}
 | `gate FAIL` + `untraceable` 高（> 80%） | 你在概括而不是抽取，回原文重做那几块 |
 | `pending` 非空 | 引擎拒绝用残缺的课出提纲，补齐再 finalize |
 | `gate FAIL` 且 `outputs` 为空 | 产物被扣留（不是没跑）。按 `reasons` 修对应块，再 finalize |
+| 报错 + 退出码 2 且目录无 `distill.json` | 所有命题都被判为不可溯源，IR 建不起来。逐条理由在 `_agent/chunk-*.result.json` 的 `rejected` 里——回原文抽取，别概括 |
 | `different transcript` | 转写被重新清洗过，`v2n_prepare {force: true}` 重建工单 |
 
 ## CLI 等价命令
