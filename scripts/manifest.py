@@ -107,8 +107,26 @@ def cmd_verify() -> int:
     return 0
 
 
+def _blob(root: Path, rel: Path) -> bytes | None:
+    """The bytes Git stores for ``rel``, or None when it is not tracked.
+
+    The working tree is not the source of truth for a vendored copy. On Windows a
+    checkout can hold CRLF while the index holds LF; copying the working tree
+    then vendors bytes no clone will ever produce, and the manifest verifies on
+    the machine that built it and fails on every other one. Reading the index
+    costs nothing and removes that whole class of drift.
+    """
+    try:
+        out = subprocess.run(["git", "-C", str(root), "show", f":{rel.as_posix()}"],
+                             check=False, capture_output=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return out.stdout if out.returncode == 0 else None
+
+
 def cmd_sync(source: Path) -> int:
-    src = source.resolve() / "v2n"
+    root = source.resolve()
+    src = root / "v2n"
     if not (src / "mcp_server.py").exists():
         print(f"FAIL {src} does not look like the upstream package")
         return 1
@@ -120,14 +138,16 @@ def cmd_sync(source: Path) -> int:
     for path in sorted(src.rglob("*")):
         if not path.is_file() or "__pycache__" in path.parts:
             continue
-        dest = PACKAGE / path.relative_to(src)
+        rel = path.relative_to(src)
+        dest = PACKAGE / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         # write_bytes, not copy2 + text mode: the manifest hashes these exact
         # bytes, and a newline translation here would make it self-invalidating.
-        dest.write_bytes(path.read_bytes())
+        data = _blob(root, Path("v2n") / rel)
+        dest.write_bytes(data if data is not None else path.read_bytes())
         copied += 1
     print(f"copied {copied} files from {src}")
-    return cmd_write(source.resolve())
+    return cmd_write(root)
 
 
 def main(argv: list[str] | None = None) -> int:

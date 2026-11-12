@@ -67,7 +67,13 @@ v2n_submit {lesson, chunk: "chunk-001", claims: [{"seg": 12, "text": "...", "kin
 v2n_finalize {lesson, outputs: "outline,timeline,cheatsheet"}
 ```
 
-返回 `gate` / `claims` / `coverage` / `untraceable`。`gate: FAIL` 时先看 `reasons`，不要直接重跑。
+返回 `gate` / `claims` / `coverage` / `untraceable` / `rendered` / `outputs`。`gate: FAIL` 时先看 `reasons`，不要直接重跑。
+
+`gate: FAIL` 时**目录里不会有任何 `.md`**——闸门在渲染之前执行，这是刻意的，不是产物丢了。此时：
+
+- 不要用 `v2n_render` 重渲染（会明确拒绝；只有 `force: true` 才写，等于你主动接受一份不合格提纲）
+- 不要因为目录空就重新提交整课——先读 `reasons`，只有相关的那几块有问题
+- `distill.json` 一定在，它是排查用的材料，不是交付物
 
 ## 质量红线
 
@@ -86,6 +92,7 @@ v2n_finalize {lesson, outputs: "outline,timeline,cheatsheet"}
 | `gate FAIL` + `coverage` 低 | 有内容没被覆盖，检查是否跳过了某些分段直接提交空数组 |
 | `gate FAIL` + `untraceable` 高（> 80%） | 你在概括而不是抽取，回原文重做那几块 |
 | `pending` 非空 | 引擎拒绝用残缺的课出提纲，补齐再 finalize |
+| `gate FAIL` 且 `outputs` 为空 | 产物被扣留（不是没跑）。按 `reasons` 修对应块，再 finalize |
 | `different transcript` | 转写被重新清洗过，`v2n_prepare {force: true}` 重建工单 |
 
 ## CLI 等价命令

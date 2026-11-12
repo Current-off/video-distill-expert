@@ -171,7 +171,7 @@ def cmd_distill_render(args: argparse.Namespace) -> int:
     names = None
     if args.outputs:
         names = [x.strip() for x in args.outputs.split(",") if x.strip()]
-    for name, path in rerender(lesson, _cfg(args), names):
+    for name, path in rerender(lesson, _cfg(args), names, force=args.force):
         print(f"{name:11} {path}")
     return 0
 
@@ -323,7 +323,7 @@ def cmd_agent_finalize(args: argparse.Namespace) -> int:
     print(f"gate    : {meta['gate']}")
     for reason in meta["reasons"]:
         print(f"  - {reason}")
-    print(f"outputs : {', '.join(meta['outputs'])}")
+    print(f"outputs : {', '.join(meta['outputs']) or '(withheld — gate FAIL)'}")
     print(f"ir      : {lesson / 'distill.json'}")
     return 0 if meta["gate"] == "PASS" else 1
 
@@ -555,6 +555,8 @@ def build_parser() -> argparse.ArgumentParser:
     common(dr)
     dr.add_argument("--lesson", required=True, help="lesson output directory")
     dr.add_argument("--outputs", help="comma list, or 'all'")
+    dr.add_argument("--force", action="store_true",
+                    help="render even if the stored IR failed the gate")
     dr.set_defaults(func=cmd_distill_render)
 
     rp = di_sub.add_parser("repl",

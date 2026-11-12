@@ -18,7 +18,7 @@ from typing import Any
 from .asr import ASRBackend, Segment, load_transcript, save_transcript
 from .atomic import atomic_write_text
 from .config import Config
-from .distill import DistillIR, distil, render_all, write_ir
+from .distill import DistillIR, discard, distil, render_all, write_ir
 from .frames import collect_frames
 from .hotkeys import PROJECT_FILE as HOTKEYS_FILE
 from .hotkeys import apply as apply_hotkeys
@@ -202,6 +202,10 @@ def run_lesson(cfg: Config, key: str, out_dir: Path, *,
     # ---- 5. distill (IR + user-selected projections) -------------------
     ir: DistillIR | None = None
     distill_outputs: list[tuple[str, Path]] = []
+    # Filled in below when distillation runs; the gate is then reused instead of
+    # recomputed, so the decision that suppressed the files and the verdict in the
+    # summary cannot disagree.
+    gate_ok, gate_reasons = True, []
     if cfg.distill_enabled:
         ir = distil(result.segments, cfg, lesson_key=key)
         if cfg.hotkeys_enabled:
@@ -219,14 +223,29 @@ def run_lesson(cfg: Config, key: str, out_dir: Path, *,
         ir.stats["terms_file"] = str(getattr(table, "source", None)
                                      or cfg.terms_file or "")
         write_ir(ir, out_dir / "distill.json")
-        distill_outputs = render_all(ir, out_dir, cfg)
-        event("distill", "done", {"backend": ir.stats.get("source"),
-                                  "requested": cfg.distill_backend,
-                                  "claims": ir.stats.get("claims"),
-                                  "coverage": ir.stats.get("coverage"),
-                                  "tokens_in": ir.stats.get("tokens_in"),
-                                  "tokens_out": ir.stats.get("tokens_out"),
-                                  "outputs": [name for name, _ in distill_outputs]})
+        # Judge before writing, not after. A gate that runs once the files exist
+        # can only describe the problem, never prevent it: rendering first meant a
+        # failed run still left outline.md on disk, and anything that reads the
+        # directory instead of the `gate` field would pick up a 6%-coverage
+        # outline that looked finished. `distill.json` is written either way, so
+        # nothing is lost — `v2n distill render` re-renders it on request.
+        gate_ok, gate_reasons = _gate(media.verdict, raw, result.segments, ir)
+        if gate_ok:
+            distill_outputs = render_all(ir, out_dir, cfg)
+        else:
+            # Re-runs are the case that matters: last run's files would survive
+            # otherwise, and they look better than the run that just failed.
+            for stale in discard(out_dir, cfg.distill_outputs):
+                event("distill", "discarded", {"path": str(stale)})
+        event("distill", "done",
+              {"backend": ir.stats.get("source"),
+               "requested": cfg.distill_backend,
+               "claims": ir.stats.get("claims"),
+               "coverage": ir.stats.get("coverage"),
+               "tokens_in": ir.stats.get("tokens_in"),
+               "tokens_out": ir.stats.get("tokens_out"),
+               "rendered": gate_ok,
+               "outputs": [name for name, _ in distill_outputs]})
     else:
         event("distill", "skipped", {"reason": "disabled"})
 
@@ -253,11 +272,15 @@ def run_lesson(cfg: Config, key: str, out_dir: Path, *,
              "degraded": (cfg.distill_backend != "rules"
                           and ir.stats.get("source") == "rules"),
              "outputs": [name for name, _ in distill_outputs],
+             # Empty `outputs` plus false `rendered` is the honest pair: the IR
+             # exists, the projected files were withheld because the gate failed.
+             "rendered": gate_ok,
              "stats": ir.stats}
             if ir is not None else {"enabled": False}
         ),
     }
-    ok, reasons = _gate(media.verdict, raw, result.segments, ir)
+    ok, reasons = ((gate_ok, gate_reasons) if ir is not None
+                   else _gate(media.verdict, raw, result.segments, None))
     meta["gate_passed"] = ok
     meta["gate_reasons"] = reasons
     render_notes(meta, result.segments, frames, notes, cfg)

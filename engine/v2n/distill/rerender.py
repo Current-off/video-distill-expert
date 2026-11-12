@@ -15,11 +15,18 @@ from .renderers import render_all
 
 
 def rerender(lesson_dir: Path | str, cfg: Config,
-             outputs: list[str] | None = None) -> list[tuple[str, Path]]:
+             outputs: list[str] | None = None,
+             force: bool = False) -> list[tuple[str, Path]]:
     """Render the IR already on disk; no audio, no ASR, no model.
 
     Hotkeys are re-applied first on purpose: a user who just edited the phrase
     list expects the next render to reflect it, without paying for a full run.
+
+    Refuses when the gate failed, unless ``force`` is set. Without that check
+    this function is a way around the one rule the project is built on: a host
+    that calls it blindly after a FAIL would recreate exactly the misleading file
+    that ``finalize`` just withheld. Overriding stays possible — it just has to
+    be a decision, not an accident.
     """
     lesson = Path(lesson_dir)
     ir_path = lesson / "distill.json"
@@ -27,6 +34,16 @@ def rerender(lesson_dir: Path | str, cfg: Config,
         raise FileNotFoundError(
             f"{ir_path} not found; run the lesson with distillation enabled first")
     ir = load_ir(ir_path)
+    if not force:
+        from ..pipeline import distill_gate
+
+        passed, reasons = distill_gate(ir)
+        if not passed:
+            hard = [r for r in reasons if not r.startswith("NOTE:")]
+            raise RuntimeError(
+                "refusing to render: this IR failed the gate (" +
+                "; ".join(hard or reasons) +
+                "). Pass force=True / --force to render it anyway.")
     if getattr(cfg, "hotkeys_enabled", False):
         # Imported here: hotkeys depends on distill, so a module-level import
         # would close the cycle.

@@ -15,7 +15,7 @@ from .agent_backend import AgentDistiller
 from .backends import Distiller, LLMDistiller, RulesDistiller, distil, make_distiller
 from .ir import build_ir, is_traceable, load_ir, write_ir
 from .model import SCHEMA_VERSION, Claim, DistillIR, Topic
-from .renderers import RENDERERS, available, render_all, resolve
+from .renderers import RENDERERS, available, discard, render_all, resolve
 
 __all__ = [
     "RENDERERS",
@@ -29,6 +29,7 @@ __all__ = [
     "Topic",
     "available",
     "build_ir",
+    "discard",
     "distil",
     "is_traceable",
     "load_ir",

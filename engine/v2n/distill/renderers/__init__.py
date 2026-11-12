@@ -23,6 +23,14 @@ RENDERERS: dict[str, Renderer] = {
     "cheatsheet": cheatsheet.render,
 }
 
+# Where each format lands. Kept beside the registry rather than inside it so
+# `discard` can delete exactly the files `render_all` would have written.
+FILENAMES: dict[str, str] = {
+    "outline": outline.FILENAME,
+    "timeline": timeline.FILENAME,
+    "cheatsheet": cheatsheet.FILENAME,
+}
+
 
 def available() -> list[str]:
     return list(RENDERERS)
@@ -59,3 +67,21 @@ def render_all(ir: DistillIR, out_dir: Path, cfg: Config,
     for name in resolve(names if names is not None else cfg.distill_outputs):
         produced.append((name, RENDERERS[name](ir, out_dir, cfg)))
     return produced
+
+
+def discard(out_dir: Path, names: Iterable[str] | None = None) -> list[Path]:
+    """Delete previously rendered files for the given formats.
+
+    A gate that fails after a previous successful run would otherwise leave last
+    run's ``outline.md`` sitting next to a fresh ``distill.json``: stale, clean
+    looking, and reachable by anything that reads the directory instead of the
+    gate. Removing is the only way "not produced" stays true across re-runs.
+    """
+    out_dir = Path(out_dir)
+    removed: list[Path] = []
+    for name in resolve(names):
+        path = out_dir / FILENAMES[name]
+        if path.exists():
+            path.unlink()
+            removed.append(path)
+    return removed

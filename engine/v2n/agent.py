@@ -39,7 +39,7 @@ from typing import Any
 from .asr import Segment, load_transcript
 from .atomic import atomic_write_text
 from .config import Config
-from .distill import render_all, write_ir
+from .distill import discard, render_all, write_ir
 from .distill.ir import (
     DEDUPE_SIMILARITY,
     content_segments,
@@ -475,12 +475,31 @@ def finalize(lesson_dir: Path | str, cfg: Config, *, outputs: list[str] | None =
     # cleaning step with the term table this IR was built with.
     ir.stats["terms_file"] = str(getattr(cfg, "terms_file", "") or "")
     write_ir(ir, lesson / "distill.json")
-    produced = render_all(ir, lesson, cfg, outputs)
 
     # Imported here to keep this module importable before the pipeline exists.
     from .pipeline import distill_gate
 
+    # Gate before render, for the same reason as a normal run: rendering first
+    # and judging afterwards can only label a bad outline, not withhold it. A
+    # host that reads files instead of `gate` would then hand the user a
+    # 6%-coverage outline with a passing-looking filename.
     passed, reasons = distill_gate(ir)
+    if passed:
+        produced = render_all(ir, lesson, cfg, outputs)
+    else:
+        produced = []
+        # Mirror what render_all would have written, not what the caller asked
+        # for: a partly-requested format must not leave the others behind.
+        names = outputs if outputs is not None else cfg.distill_outputs
+        discarded = discard(lesson, names)
+        # Say where the material went. Silence here reads as "nothing to see",
+        # while the IR on disk is exactly what a human needs to diagnose it.
+        detail = (f"withheld and deleted {len(discarded)} previously rendered "
+                  "file(s)" if discarded else "withheld every rendered file")
+        reasons = [*reasons,
+                   (f"{detail}; distill.json is intact; "
+                    "`v2n distill render --lesson <dir> --force` re-renders it "
+                    "deliberately")]
     return {
         "claims": ir.stats["claims"],
         "topics": ir.stats["topics"],
@@ -489,6 +508,7 @@ def finalize(lesson_dir: Path | str, cfg: Config, *, outputs: list[str] | None =
         "untraceable": ir.stats["untraceable"],
         "duplicates": ir.stats["duplicates"],
         "outputs": [name for name, _ in produced],
+        "rendered": passed,
         "gate": "PASS" if passed else "FAIL",
         "reasons": reasons,
         "pending": ir.stats.get("pending_chunks") or [],

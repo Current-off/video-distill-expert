@@ -126,7 +126,7 @@ def _render(args: dict[str, Any]) -> dict[str, Any]:
     from .distill.rerender import rerender
 
     lesson, cfg = _lesson_cfg(args)
-    produced = rerender(lesson, cfg, _outputs(args))
+    produced = rerender(lesson, cfg, _outputs(args), force=bool(args.get("force")))
     return {"outputs": [name for name, _ in produced],
             "files": [str(path) for _, path in produced]}
 
@@ -188,10 +188,14 @@ _TOOLS: list[dict[str, Any]] = [
                                       "description": "outline|timeline|cheatsheet|all"}}},
           _finalize),
     _tool("v2n_render",
-          "Re-render formats from an existing distill.json. No model, no audio.",
+          "Re-render formats from an existing distill.json. No model, no audio. "
+          "Refuses when the gate failed unless force is set.",
           {"type": "object", "additionalProperties": False, "required": ["lesson"],
            "properties": {"lesson": _LESSON,
-                          "outputs": {"type": ["string", "array"]}}},
+                          "outputs": {"type": ["string", "array"]},
+                          "force": {"type": "boolean",
+                                    "description": "render even though the IR "
+                                                   "failed the gate"}}},
           _render),
 ]
 
