@@ -33,7 +33,14 @@ dependencies = [
 [project.optional-dependencies]
 hls = ["pycryptodome>=3.19"]
 media = ["imageio-ffmpeg>=0.4", "Pillow>=10.0", "numpy>=1.24"]
-asr = ["faster-whisper>=1.0"]
+asr = [
+    "faster-whisper>=1.0",
+    # PyAV 19.0.0 removed av.open's metadata_errors argument; faster-whisper
+    # 1.2.1 still passes it while declaring only `av>=11`. Unpinned, the first
+    # transcription of a real mp4 dies with TypeError. Ceiling lifts when
+    # faster-whisper stops passing the argument.
+    "av>=11,<19",
+]
 full = ["video-distill-expert[hls,media,asr]"]
 dev = ["pytest>=7.4", "ruff>=0.4", "pycryptodome>=3.19"]
 

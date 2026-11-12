@@ -87,6 +87,8 @@ python demo.py
 
 - 你要从视频/音频直接来 → 需要 `pip install -e "engine[asr,media]"`，它会拉 `faster-whisper`（数百 MB）和 ffmpeg 二进制。这一步要你自己决定，部署脚本不会擅自装。
 
+  装完先跑一次 `v2n doctor`，`faster_whisper` 和 `ffmpeg` 两行都是 OK 再去转写。**别手动升级 `av`**：`engine/pyproject.toml` 把 PyAV 钉在 `<19`，因为 PyAV 19 删了 `av.open(metadata_errors=...)` 而 faster-whisper 1.2.1 还在传它——装成最新组合，第一次转写就是 `TypeError: open() got an unexpected keyword argument 'metadata_errors'`。这个坑是第一次真实 mp4 实测撞出来的，当时唯一的症状就是这一行 TypeError，跟本项目毫无关系。
+
 ---
 
 ## 三条硬约束

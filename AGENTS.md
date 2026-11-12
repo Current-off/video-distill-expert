@@ -81,7 +81,20 @@ python demo.py --work /tmp/vde-demo
 ## 5. 不要做的事
 
 1. **不要装到系统 Python 或用户的全局环境。** 部署器自带 venv（默认 `~/.video-distill-expert/venv`），这是刻意的隔离。
-2. **不要装 `[asr]` / `[media]` 额外依赖。** 默认部署已经能完成蒸馏。只有用户明确要求"从视频/音频直接转写"时才需要，且要提前说明它会下载数百 MB 的语音模型。
+2. **默认不要装 `[asr]` / `[media]`，但用户给了视频文件时该装就装。** 默认部署只读 `transcript.txt`，这已经能完成蒸馏。判断标准是**用户有没有给你要处理的文件本身**：
+   - 用户给的是文字稿、字幕、或已有 `transcript.txt` → 什么都不用装，直接走蒸馏。
+   - 用户给你 `.mp4` / `.mkv` / `.mp3` 这类媒体文件，要求「把这个做成笔记」 → 这就是明确要求。先告诉用户会下载数百 MB 的语音模型，再执行：
+
+     ```bash
+     # Windows
+     %USERPROFILE%\.video-distill-expert\venv\Scripts\python.exe -m pip install -e ".\engine[asr,media]"
+     # macOS / Linux
+     ~/.video-distill-expert/venv/bin/python -m pip install -e "./engine[asr,media]"
+     ```
+
+     同时确认 `ffmpeg` 在 PATH 上（`ffmpeg -version`），转写时用 `--asr whisper`。装完先跑 `v2n doctor`，`faster_whisper` 与 `ffmpeg` 两行都是 OK 再往下一步，否则你会拿到一份失败很久之后才发现的转写。
+
+   **不要手动升级 `av`。** `engine/pyproject.toml` 把 PyAV 钉在 `<19`：PyAV 19 删掉了 `av.open(metadata_errors=...)`，而 faster-whisper 1.2.1 还在传它，装成最新组合后第一次转写必报 `TypeError: open() got an unexpected keyword argument 'metadata_errors'`。看到这个报错就是这里被绕过了。
 3. **不要修改 MCP 配置里其他 server 的条目。** 部署器只增改自己那一条，已有条目原样保留。
 4. **不要用 `rm -rf` 清理或"重装"。** 真要重来，用 `--root` 换个目录，或让用户删掉 `~/.video-distill-expert`。
 5. **不要把这个仓库的上游当依赖。** 引擎已内联在 `engine/`，部署不需要任何仓库访问凭据。
@@ -94,7 +107,7 @@ python demo.py --work /tmp/vde-demo
 
 | 项 | 路径 |
 |---|---|
-| 引擎源码 | `engine/v2n/`（37 个文件，来自上游 `0840936`） |
+| 引擎源码 | `engine/v2n/`（37 个文件，来自上游 `b60b88a`） |
 | 部署器 | `bootstrap.py`（仅标准库） |
 | 蒸馏规则 | `skill/SKILL.md` |
 | 自检演示 | `demo.py` |
