@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "video-distill-expert"
+version = "0.1.0"
+description = "The distillation engine behind 视频蒸馏专家: transcript in, traceable study notes out, with the agent supplying the intelligence"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["mcp", "distillation", "transcript", "notes", "agent", "study"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Education",
+]
+
+# Deliberately small. Distillation and the MCP bridge are stdlib + these two,
+# so a deployment finishes in seconds and works offline once wheels are cached.
+# ASR and media handling stay optional: an expert that only needs to distil a
+# transcript should not drag in ffmpeg and a 500 MB model.
+dependencies = [
+    "requests>=2.31",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+hls = ["pycryptodome>=3.19"]
+media = ["imageio-ffmpeg>=0.4", "Pillow>=10.0", "numpy>=1.24"]
+asr = ["faster-whisper>=1.0"]
+full = ["video-distill-expert[hls,media,asr]"]
+dev = ["pytest>=7.4", "ruff>=0.4", "pycryptodome>=3.19"]
+
+[project.scripts]
+# Same entry points as the upstream engine: the bridge is the product, and a
+# second naming scheme for the same functions would be a maintenance trap.
+v2n = "v2n.cli:main"
+v2n-mcp = "v2n.mcp_server:main"
+
+[tool.setuptools.packages.find]
+include = ["v2n*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "C4", "UP", "SIM", "RET", "ARG",
+          "ISC", "PYI", "PTH", "RUF"]
+ignore = [
+    # Rendered Chinese notes legitimately use full-width punctuation.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    "PTH105",
+    "PYI034",
+]

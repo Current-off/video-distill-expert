@@ -1,0 +1,65 @@
+# Built-in hotkeys: phrases that signal emphasis in ordinary speech.
+#
+# These are deliberately generic. A subject-specific term ("RAG", "半开扫描")
+# belongs in the learned project file, not here — shipping one course's jargon to
+# every user is how a "smart" feature becomes a wrong one.
+#
+# weight: how much a hit is allowed to raise a claim's salience (0–1 scale).
+emphasis:
+  - 最重要的是
+  - 最重要
+  - 最关键的是
+  - 关键是
+  - 关键在于
+  - 核心是
+  - 重点是
+  - 一定要
+  - 务必
+  - 记住
+  - 划重点
+  - 特别要注意
+  - 千万
+  - 说白了
+  - 划重点的地方
+  - 这就是重点
+  - 最核心
+  - 请记住
+caution:
+  - 不要
+  - 不能
+  - 避免
+  - 禁止
+  - 小心
+  - 否则
+  - 风险在于
+structure:
+  - 首先
+  - 其次
+  - 最后
+  - 第一
+  - 第二
+  - 第三
+  - 接下来
+  - 总结一下
+  - 总而言之
+  - 综上
+definition:
+  - 是指
+  - 叫做
+  - 也就是说
+  - 简单来说
+  - 意思是
+  - 定义为
+latin_emphasis:
+  - most importantly
+  - the key is
+  - the key point
+  - remember that
+  - keep in mind
+  - note that
+  - in summary
+  - the point is
+  - you must
+  - never
+  - always
+  - crucial

@@ -1,0 +1,39 @@
+# Example term-correction table for Chinese technical ASR output.
+#
+# Format: [mis-heard form, correct form].
+# A pair with identical sides is a *protection* entry: that word is masked
+# before substitutions so a shorter rule cannot corrupt it.
+#
+# Keep this table small and domain-specific. Only add a mapping after observing
+# it in a real transcript — guessed rules will silently rewrite correct text.
+# For an English/other-language course, supply your own file via
+# `terms_file` in config.yaml or `V2N_TERMS_FILE`.
+
+terms:
+  - ["紫域名", "子域名"]
+  - ["竹玉冥", "子域名"]
+  - ["子域名", "子域名"]
+
+  - ["Circle 注入", "SQL 注入"]
+  - ["Circle注入", "SQL注入"]
+  - ["Circle", "SQL"]
+  - ["SOCKS5 语法", "SQL 语法"]
+  - ["SQL 注入", "SQL 注入"]
+
+  - ["MAP工具", "NMAP 工具"]
+  - ["MapGun", "NMAP"]
+  - ["NMAP", "NMAP"]
+
+  - ["佛法", "FOFA"]
+  - ["伏法", "FOFA"]
+  - ["FOFA", "FOFA"]
+
+  - ["互网", "护网"]
+  - ["名文", "明文"]
+  - ["达骂", "打码"]
+  - ["钢匹", "-p"]
+  - ["字点", "字典"]
+
+  - ["JWT", "JWT"]
+  - ["SSRF", "SSRF"]
+  - ["XSS", "XSS"]

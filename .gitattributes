@@ -1,0 +1,10 @@
+# The installer runs on three platforms and the shell snippets inside CI assume
+# LF. Normalising here means a Windows checkout behaves like a Linux one, which
+# is the whole point of testing the deploy path on Windows.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.zip binary
+*.whl binary
